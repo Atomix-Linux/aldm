@@ -1,0 +1,10 @@
+[Unit]
+Description=Atomix Linux Deployments Manager automatic updates
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=aldm-deploy
+RemainAfterExit=false
+StandardOutput=journal

@@ -1,0 +1,39 @@
+#!/bin/bash
+
+set -e
+
+if [ $EUID -ne 0 ]; then
+	echo "$(basename $0) must be run as root"
+	exit 1
+fi
+
+if ! aldm-release > /dev/null; then
+	echo "Not currently running a aldm deployment"
+	exit 1
+fi
+
+MOUNT_PATH=/aldm_root
+
+if ! mountpoint -q ${MOUNT_PATH}; then
+	mkdir -p ${MOUNT_PATH}
+	mount -L aldm_root ${MOUNT_PATH}
+	sleep 5
+fi
+
+if ! mountpoint -q ${MOUNT_PATH}/boot && ls -1 /dev/disk/by-label | grep EFI > /dev/null; then
+	mkdir -p ${MOUNT_PATH}/boot
+	mount -L EFI ${MOUNT_PATH}/boot
+	sleep 5
+fi
+
+DEPLOYMENT=$(aldm-release)
+
+# set to read-only mode
+mount -o remount,ro /
+btrfs property set -ts /aldm_root/deployments/${DEPLOYMENT} ro true
+
+# update fstab
+sed -i -e 's/,rw,/,ro,/' /etc/fstab
+systemctl daemon-reexec
+
+echo "aldm deployment ${DEPLOYMENT} locked (read-only)"
