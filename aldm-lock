@@ -30,7 +30,7 @@ DEPLOYMENT=$(aldm-release)
 
 # set to read-only mode
 mount -o remount,ro /
-btrfs property set -ts /aldm_root/deployments/${DEPLOYMENT} ro true
+btrfs property set -ts /aldm_root/deploys/${DEPLOYMENT} ro true
 
 # update fstab
 sed -i -e 's/,rw,/,ro,/' /etc/fstab

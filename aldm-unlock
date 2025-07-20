@@ -31,7 +31,7 @@ DEPLOYMENT=$(aldm-release)
 
 # set to read-write mode
 mount -o remount,rw /
-btrfs property set -fts /aldm_root/deployments/${DEPLOYMENT} ro false
+btrfs property set -fts /aldm_root/deploys/${DEPLOYMENT} ro false
 sed -i -e 's/,ro,/,rw,/' /etc/fstab
 systemctl daemon-reload
 
