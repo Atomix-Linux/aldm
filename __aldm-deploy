@@ -505,6 +505,7 @@ EOF
     rm -rf /var/lib/pacman # undo aldm-unlock
 
     echo "Deployment complete; restart to boot into ${NAME}"
+    notify-send -u critical -i yast-upgrade -a "Atomix Linux Deployments Manager" "Please reboot your system to apply update."
 }
 
 if [ "$0" = "$BASH_SOURCE" ] ; then
