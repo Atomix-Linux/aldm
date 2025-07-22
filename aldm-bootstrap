@@ -152,10 +152,17 @@ fi
 
 ########## COMMON INSTALLATION STEPS (both modes)
 # Create Btrfs subvolumes
-btrfs subvolume delete ${MOUNT_PATH}/var
-btrfs subvolume delete ${MOUNT_PATH}/home
+if btrfs subvolume show ${MOUNT_PATH}/var &>/dev/null; then
+    btrfs subvolume delete ${MOUNT_PATH}/var
+fi
+
+if btrfs subvolume show ${MOUNT_PATH}/home &>/dev/null; then
+    btrfs subvolume delete ${MOUNT_PATH}/home
+fi
+
 btrfs subvolume create ${MOUNT_PATH}/var
 btrfs subvolume create ${MOUNT_PATH}/home
+
 
 # Create user directory
 USERNAME=user
