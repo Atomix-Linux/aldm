@@ -83,9 +83,10 @@ if [ "$INSTALL_MODE" == "Advanced" ]; then
 
 	# Get partition list
 	partition_list=()
-	while read -r part; do
-		partition_list+=("/dev/$part" "")
-	done < <(lsblk -ln -o NAME ${DISK} | grep 'part$')
+while IFS= read -r part; do
+	partition_list+=("/dev/$part" "")
+done < <(lsblk -ln -o NAME,TYPE ${DISK} | awk '$2 == "part" {print $1}')
+
 
 	# Select root partition
 	ROOT_PART=$(whiptail --nocancel --menu "Select SYSTEM partition:" 20 60 5 "${partition_list[@]}" 3>&1 1>&2 2>&3)
