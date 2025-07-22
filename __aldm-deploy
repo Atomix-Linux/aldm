@@ -141,79 +141,75 @@ clean_progress() {
 }
 
 download_parts() {
-    local parts_str=$1
-    local mount_path=$2
-    local steam_progress=$3
-    local show_ui=$4
-
+    local parts_str=$1 mount_path=$2 steam_progress=$3 show_ui=$4
     IFS=' ' read -r -a parts <<< "$parts_str"
     BASE_NAME=$(basename "${parts[0]%.part.aa*}")
     PART_FILES=()
     total_parts=${#parts[@]}
     total_size=0
 
-    for part_url in "${parts[@]}"; do
-        size=$(curl -sI "$part_url" \
-            | grep -i '^Content-Length:' \
-            | awk '{print $2}' | tr -d '\r')
-        [ -n "$size" ] && total_size=$((total_size + size))
+    # policz total_size
+    for u in "${parts[@]}"; do
+        s=$(curl -sI "$u" | awk '/^[Cc]ontent-Length:/ {print $2}' | tr -d '\r')
+        [ -n "$s" ] && total_size=$((total_size + s))
     done
     [ "$total_size" -eq 0 ] && total_size=$total_parts
 
-    downloaded_bytes=0
     part_num=0
+    downloaded_bytes=0
 
-    for part_url in "${parts[@]}"; do
-        part_num=$((part_num + 1))
-        part_name=$(basename "$part_url")
-        PART_FILES+=("${mount_path}/${part_name}")
-
-        part_size=$(curl -sI "$part_url" \
-            | grep -i '^Content-Length:' \
-            | awk '{print $2}' | tr -d '\r')
-        [ -z "$part_size" ] && part_size=1
+    for u in "${parts[@]}"; do
+        part_num=$((part_num+1))
+        fname=$(basename "$u")
+        PART_FILES+=("${mount_path}/${fname}")
+        psize=$(curl -sI "$u" | awk '/^[Cc]ontent-Length:/ {print $2}' | tr -d '\r')
+        [ -z "$psize" ] && psize=1
 
         if [ "$steam_progress" -eq 1 ]; then
-            # Konsolowy steam-progress
-            curl --http1.1 -# -L -o "${mount_path}/${part_name}" -C - "${part_url}" 2>&1 \
-                | stdbuf -oL tr '\r' '\n' \
-                | grep --line-buffered -oP '^\s*\K[0-9]+' \
-                | clean_progress 91 '%'
+            # console style
+            curl -# -L -o "${mount_path}/${fname}" -C - "$u" 2>&1 \
+              | stdbuf -oL tr '\r' '\n' \
+              | grep --line-buffered -o '[0-9]\+' \
+              | clean_progress 91 '%'
         elif [ -z "$show_ui" ]; then
-            # Tryb tekstowy
-            echo "downloading ${part_name} (part $part_num/$total_parts)..."
-            curl --http1.1 -L -o "${mount_path}/${part_name}" -C - "${part_url}"
+            echo "Downloading ${fname} ($part_num/$total_parts)..."
+            curl -L -o "${mount_path}/${fname}" -C - "$u"
         else
-            # UI mode – bezpośredni potok do whiptail
-            curl --http1.1 -# -L -o "${mount_path}/${part_name}" -C - "${part_url}" 2>&1 \
+            # UI mode: każdy part ma własny gauge
+            (
+              echo 0
+              curl -# -L -o "${mount_path}/${fname}" -C - "$u" 2>&1 \
                 | stdbuf -oL tr '\r' '\n' \
-                | grep --line-buffered -oP '^\s*\K[0-9]+' \
-                | clean_progress 100 '' \
-                | whiptail --gauge "Downloading part $part_num/$total_parts: ${part_name}" 10 60 0
+                | grep --line-buffered -o '[0-9]\+' \
+                | clean_progress 100 ''
+              echo 100
+            ) | whiptail --title "Part $part_num/$total_parts" \
+                         --gauge "Downloading ${fname}" 10 60 0
         fi
 
-        downloaded_bytes=$((downloaded_bytes + part_size))
+        downloaded_bytes=$((downloaded_bytes + psize))
     done
 
-    echo "Combining parts into ${BASE_NAME}..."
+    echo "Combining into ${BASE_NAME}..."
     cat "${PART_FILES[@]}" > "${mount_path}/${BASE_NAME}"
 
     if [ -f "${mount_path}/sha256sum.txt" ]; then
         echo "Verifying checksum..."
-        expected_checksum=$(grep "${BASE_NAME}" "${mount_path}/sha256sum.txt" | cut -d' ' -f1)
-        actual_checksum=$(sha256sum "${mount_path}/${BASE_NAME}" | cut -d' ' -f1)
-        if [ "$expected_checksum" != "$actual_checksum" ]; then
-            echo "Checksum verification failed!"
+        exp=$(grep "${BASE_NAME}" "${mount_path}/sha256sum.txt" | cut -d' ' -f1)
+        act=$(sha256sum "${mount_path}/${BASE_NAME}" | cut -d' ' -f1)
+        if [ "$exp" != "$act" ]; then
+            echo "Checksum failed!" >&2
             rm -f "${mount_path}/${BASE_NAME}"
             exit 1
         fi
     else
-        echo "Warning: No sha256sum.txt found, skipping checksum verification"
+        echo "No sha256sum.txt, skipping verification"
     fi
 
     rm -f "${PART_FILES[@]}"
     echo "${mount_path}/${BASE_NAME}"
 }
+
 
 
 main() {
