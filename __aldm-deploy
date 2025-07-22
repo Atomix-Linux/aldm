@@ -140,88 +140,61 @@ clean_progress() {
     done
 }
 
+
 download_parts() {
     local parts_str=$1
     local mount_path=$2
     local steam_progress=$3
     local show_ui=$4
 
-    # Convert string to array
     IFS=' ' read -r -a parts <<< "$parts_str"
-
-    # Get base name from first part
     BASE_NAME=$(basename "${parts[0]%.part.aa*}")
     PART_FILES=()
-
-    # Get total number of parts
     total_parts=${#parts[@]}
+    total_size=0
+
+    for part_url in "${parts[@]}"; do
+        size=$(curl -sI "$part_url" | grep -i 'Content-Length' | awk '{print $2}' | tr -d '\r')
+        [ -n "$size" ] && total_size=$((total_size + size))
+    done
+    [ "$total_size" -eq 0 ] && total_size=$total_parts
+
+    downloaded_bytes=0
     part_num=0
 
-    # Calculate total size if possible
-    total_size=0
     for part_url in "${parts[@]}"; do
-        # Try to get file size from Content-Length header
-        size=$(curl -sI "$part_url" | grep -i 'Content-Length' | awk '{print $2}' | tr -d '\r')
-        if [ -n "$size" ]; then
-            total_size=$((total_size + size))
-        fi
-    done
-
-    # If total_size is 0 (no headers), fall back to simple counting
-    if [ "$total_size" -eq 0 ]; then
-        total_size=$total_parts
-    fi
-
-    # Download each part
-    downloaded_bytes=0
-    for part_url in "${parts[@]}"; do
-        part_num=$((part_num+1))
+        part_num=$((part_num + 1))
         part_name=$(basename "$part_url")
         PART_FILES+=("${mount_path}/${part_name}")
 
-        # Get current part size for progress calculation
         part_size=$(curl -sI "$part_url" | grep -i 'Content-Length' | awk '{print $2}' | tr -d '\r')
-        if [ -z "$part_size" ]; then
-            part_size=1
-        fi
+        [ -z "$part_size" ] && part_size=1
 
-        if [ $steam_progress -eq 1 ]; then
-            # Steam progress mode
+        if [ "$steam_progress" -eq 1 ]; then
             curl --http1.1 -# -L -o "${mount_path}/${part_name}" -C - "${part_url}" 2>&1 | \
             stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '^\s*\K[0-9]+' | clean_progress 91 %
         elif [ -z "$show_ui" ]; then
-            # Text mode
             echo "downloading ${part_name} (part $part_num/$total_parts)..."
             curl --http1.1 -L -o "${mount_path}/${part_name}" -C - "${part_url}"
         else
-            # UI mode - single progress bar for all parts
+            # UI mode – osobny whiptail z clean_progress
             {
                 curl --http1.1 -# -L -o "${mount_path}/${part_name}" -C - "${part_url}" 2>&1 | \
                 stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '^\s*\K[0-9]+' | \
-                while read -r progress; do
-                    # Calculate downloaded bytes for this part
-                    current_bytes=$((downloaded_bytes + (progress * part_size / 100)))
-                    # Calculate overall percentage
-                    overall_percent=$((current_bytes * 100 / total_size))
-                    echo "$overall_percent"
-                done
-            } | whiptail --gauge "Downloading system image part $part_num/$total_parts (${part_name})" 10 50 0
+                clean_progress 100 ''
+            } | whiptail --gauge "Downloading part $part_num/$total_parts: ${part_name}" 10 60 0
         fi
 
-        # Update downloaded bytes after part is completed
         downloaded_bytes=$((downloaded_bytes + part_size))
     done
 
-    # Combine parts
     echo "Combining parts into ${BASE_NAME}..."
     cat "${PART_FILES[@]}" > "${mount_path}/${BASE_NAME}"
 
-    # Verify checksum if available
     if [ -f "${mount_path}/sha256sum.txt" ]; then
         echo "Verifying checksum..."
         expected_checksum=$(grep "${BASE_NAME}" "${mount_path}/sha256sum.txt" | cut -d' ' -f1)
         actual_checksum=$(sha256sum "${mount_path}/${BASE_NAME}" | cut -d' ' -f1)
-
         if [ "$expected_checksum" != "$actual_checksum" ]; then
             echo "Checksum verification failed!"
             rm -f "${mount_path}/${BASE_NAME}"
@@ -231,11 +204,11 @@ download_parts() {
         echo "Warning: No sha256sum.txt found, skipping checksum verification"
     fi
 
-    # Clean up parts
     rm -f "${PART_FILES[@]}"
 
     echo "${mount_path}/${BASE_NAME}"
 }
+
 
 main() {
     if [ $EUID -ne 0 ]; then
