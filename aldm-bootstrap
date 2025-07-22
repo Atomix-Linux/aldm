@@ -110,7 +110,7 @@ All data on these partitions will be lost. Continue?" 15 60); then
 
 	# Format and mount root partition
 	if [ "$FORMAT_ROOT" == "0" ]; then
-		mkfs.btrfs -L aldm_root -f ${ROOT_PART}
+		mkfs.btrfs  -L aldm_root -f ${ROOT_PART}
 	fi
 	mount -t btrfs -o nodatacow ${ROOT_PART} ${MOUNT_PATH}
 
@@ -152,6 +152,8 @@ fi
 
 ########## COMMON INSTALLATION STEPS (both modes)
 # Create Btrfs subvolumes
+btrfs subvolume delete ${MOUNT_PATH}/var
+btrfs subvolume delete ${MOUNT_PATH}/home
 btrfs subvolume create ${MOUNT_PATH}/var
 btrfs subvolume create ${MOUNT_PATH}/home
 
