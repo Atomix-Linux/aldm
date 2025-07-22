@@ -140,7 +140,6 @@ clean_progress() {
     done
 }
 
-
 download_parts() {
     local parts_str=$1
     local mount_path=$2
@@ -154,7 +153,9 @@ download_parts() {
     total_size=0
 
     for part_url in "${parts[@]}"; do
-        size=$(curl -sI "$part_url" | grep -i 'Content-Length' | awk '{print $2}' | tr -d '\r')
+        size=$(curl -sI "$part_url" \
+            | grep -i '^Content-Length:' \
+            | awk '{print $2}' | tr -d '\r')
         [ -n "$size" ] && total_size=$((total_size + size))
     done
     [ "$total_size" -eq 0 ] && total_size=$total_parts
@@ -167,22 +168,28 @@ download_parts() {
         part_name=$(basename "$part_url")
         PART_FILES+=("${mount_path}/${part_name}")
 
-        part_size=$(curl -sI "$part_url" | grep -i 'Content-Length' | awk '{print $2}' | tr -d '\r')
+        part_size=$(curl -sI "$part_url" \
+            | grep -i '^Content-Length:' \
+            | awk '{print $2}' | tr -d '\r')
         [ -z "$part_size" ] && part_size=1
 
         if [ "$steam_progress" -eq 1 ]; then
-            curl --http1.1 -# -L -o "${mount_path}/${part_name}" -C - "${part_url}" 2>&1 | \
-            stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '^\s*\K[0-9]+' | clean_progress 91 %
+            # Konsolowy steam-progress
+            curl --http1.1 -# -L -o "${mount_path}/${part_name}" -C - "${part_url}" 2>&1 \
+                | stdbuf -oL tr '\r' '\n' \
+                | grep --line-buffered -oP '^\s*\K[0-9]+' \
+                | clean_progress 91 '%'
         elif [ -z "$show_ui" ]; then
+            # Tryb tekstowy
             echo "downloading ${part_name} (part $part_num/$total_parts)..."
             curl --http1.1 -L -o "${mount_path}/${part_name}" -C - "${part_url}"
         else
-            # UI mode – osobny whiptail z clean_progress
-            {
-                curl --http1.1 -# -L -o "${mount_path}/${part_name}" -C - "${part_url}" 2>&1 | \
-                stdbuf -oL tr '\r' '\n' | grep --line-buffered -oP '^\s*\K[0-9]+' | \
-                clean_progress 100 ''
-            } | whiptail --gauge "Downloading part $part_num/$total_parts: ${part_name}" 10 60 0
+            # UI mode – bezpośredni potok do whiptail
+            curl --http1.1 -# -L -o "${mount_path}/${part_name}" -C - "${part_url}" 2>&1 \
+                | stdbuf -oL tr '\r' '\n' \
+                | grep --line-buffered -oP '^\s*\K[0-9]+' \
+                | clean_progress 100 '' \
+                | whiptail --gauge "Downloading part $part_num/$total_parts: ${part_name}" 10 60 0
         fi
 
         downloaded_bytes=$((downloaded_bytes + part_size))
@@ -205,7 +212,6 @@ download_parts() {
     fi
 
     rm -f "${PART_FILES[@]}"
-
     echo "${mount_path}/${BASE_NAME}"
 }
 
