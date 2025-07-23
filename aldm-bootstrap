@@ -111,7 +111,7 @@ if [ "$INSTALL_MODE" == "Advanced" ]; then
   if [ "$FORMAT_EFI" = true ]; then
     mkfs.vfat -F 32 "${EFI_PART}"
   fi
-  btrfs filesystem label ${ROOT_PART} aldm_root
+  btrfs filesystem label ${MOUNT_PATH} aldm_root
   dosfslabel "${EFI_PART}" EFI
   mkdir -p "${MOUNT_PATH}/boot"
   mount -t vfat "${EFI_PART}" "${MOUNT_PATH}/boot"
