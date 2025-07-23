@@ -115,7 +115,6 @@ if [ "$INSTALL_MODE" == "Advanced" ]; then
   dosfslabel "${EFI_PART}" EFI
   mkdir -p "${MOUNT_PATH}/boot"
   mount -t vfat "${EFI_PART}" "${MOUNT_PATH}/boot"
-fi
 
 ########## QUICK MODE (automatic partitioning)
 else
